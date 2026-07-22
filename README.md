@@ -45,8 +45,7 @@ rune help           Show help
 
 `rune update` checks Torvik and Rune **independently**: if only Torvik moved it updates the toolchain (which also refreshes Rune), if only Rune moved it updates just Rune, and if both moved it updates both. `rune self-update` targets Rune alone.
 
-```
 
 ## License
 
-AGPL-3.0 with a runtime-library exception — see [LICENSE](LICENSE). Programs you build with Torvik and rune are entirely yours. "Torvik" and "rune" naming/branding are covered by a separate trademark notice.
+AGPL-3.0 with a runtime-library exception — see [LICENSE](LICENSE). Programs you build with Torvik and rune are entirely yours. "Torvik" and "Rune" naming/branding are covered by a separate trademark notice.
