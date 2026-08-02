@@ -1,3 +1,10 @@
+> [!WARNING]
+> **rune 1.5.1 fixes a critical security issue — please update.** Earlier versions
+> could execute arbitrary commands while *building* a project, triggered by values
+> in its `torvik.rune` manifest. Cloning a repository and running `rune build` was
+> enough. Update Torvik to 1.5.2 as well; both tools are involved.
+> Details: [SECURITY.md](SECURITY.md#rune-2026-001--command-injection-via-torvikrune-fixed-in-151).
+
 # rune
 
 **rune** is the package manager and toolchain manager for the [Torvik](https://github.com/torvik-lang/torvik) programming language. It creates projects, builds them, and keeps your Torvik installation up to date. rune is itself written in Torvik.
