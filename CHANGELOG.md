@@ -3,6 +3,23 @@
 All notable changes to rune are documented here. rune is versioned independently
 of Torvik; this file tracks rune only. Format based on Keep a Changelog.
 
+## [1.5.1] — 2026-08
+
+### Security
+
+- **Command injection via `torvik.rune` (critical).** `rune` interpolated manifest
+  values into the `torvc` command line without validating them, so a manifest
+  containing shell syntax executed arbitrary commands during an ordinary
+  `rune build` — cloning a repository and building it was enough. Affected fields:
+  `name`, and under `[build]`, `entry`, `arch`, `link-script` and `link-with`. All
+  manifest values are now validated before use: names, entry symbols and target
+  triples against a character allowlist, paths screened for shell metacharacters.
+  See [SECURITY.md](SECURITY.md) (RUNE-2026-001). Requires Torvik 1.5.2, which
+  fixes the same class of issue inside `torvc`.
+
+  Quoting was not used as the fix. Shell double-quoting stops word-splitting but
+  not command substitution — `"$(...)"` still expands — so validation is the only
+  reliable answer.
 ## [1.5.0] - 2026-07
 
 Released alongside Torvik v1.5.0 "The Forge".

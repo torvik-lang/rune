@@ -119,13 +119,72 @@ df rune_field(content: str, key: str) -> str {
 
 // ─── Project resolution ─────────────────────────────────────────────────────
 
+// ── Manifest value validation ───────────────────────────────────────────────
+// Every value below is read from torvik.rune and interpolated into a shell
+// command. A manifest arrives with a repository, so these are attacker-supplied
+// the moment someone clones a project and runs `rune build` - the ordinary thing
+// a package manager exists to make routine.
+//
+// They are VALIDATED, not quoted. Shell double-quoting does not stop command
+// substitution: "$(...)" still expands. An allowlist is the only reliable answer,
+// and nothing legitimate needs a character outside one.
+df rune_chars_ok(v: str, extra: str) -> i64 {
+    check len(v) == 0 { return 0; }
+    set i: i64 = 0;
+    whilst i < len(v) {
+        fixed c: i64 = byte_at(v, i);
+        set ok: i64 = 0;
+        check c >= 97 && c <= 122 { ok = 1; }
+        check c >= 65 && c <= 90  { ok = 1; }
+        check c >= 48 && c <= 57  { ok = 1; }
+        set j: i64 = 0;
+        whilst j < len(extra) {
+            check byte_at(extra, j) == c { ok = 1; }
+            j += 1;
+        }
+        check ok == 0 { return 0; }
+        i += 1;
+    }
+    return 1;
+}
+
+// A path may hold separators, spaces and colons, so it is screened for shell
+// metacharacters rather than restricted to an allowlist.
+df rune_path_field_ok(v: str) -> i64 {
+    check len(v) == 0 { return 0; }
+    set i: i64 = 0;
+    whilst i < len(v) {
+        fixed c: i64 = byte_at(v, i);
+        check c == 36 || c == 96 || c == 34 || c == 39 { return 0; }
+        check c == 59 || c == 124 || c == 38 || c == 92 { return 0; }
+        check c == 60 || c == 62 || c == 40 || c == 41 { return 0; }
+        check c == 10 || c == 13 { return 0; }
+        i += 1;
+    }
+    return 1;
+}
+
+df rune_reject_field(field: str, value: str, whatfor: str) -> void {
+    echo!(fmt("rune: the '{}' value in torvik.rune is not usable.", field));
+    echo!(fmt("  value: {}", value));
+    echo!(fmt("  {}", whatfor));
+    echo!("  A manifest travels with a repository, so this value is refused rather");
+    echo!("  than passed to a shell.");
+    exit(1);
+}
+
 df rune_get_name() -> str {
     // No manifest at all (a bare src/main.tv build): fall back to the directory
     // name, which is more meaningful than a generic "output".
     check rune_path_exists("torvik.rune") == 0 { return rune_cwd_name(); }
     fixed content: str = readfile("torvik.rune");
     fixed n: str = rune_field(content, "name");
-    check len(n) > 0 { return n; }
+    check len(n) > 0 {
+        check rune_chars_ok(n, "_-.") == 0 {
+            rune_reject_field("name", n, "The name becomes the output file path, so it is limited to letters, digits, and _ - . characters.");
+        }
+        return n;
+    }
     // A manifest that exists but has no name is malformed - surface it rather than
     // silently building something called "output".
     echo!("error: torvik.rune is missing a 'name' field.");
@@ -358,11 +417,24 @@ df rune_build_flags() -> str {
         check rune_str_eq(rune_build_field("no-std"), "true") == 1 { f = str_concat(f, " --no-std"); }
     }
     fixed e: str = rune_build_field("entry");
-    check len(e) > 0 { f = str_concat(f, str_concat(" --entry ", e)); }
+    check len(e) > 0 {
+        check rune_chars_ok(e, "_") == 0 {
+            rune_reject_field("entry", e, "The entry symbol is emitted into LLVM IR, so it follows C identifier rules: letters, digits and underscores.");
+        }
+        f = str_concat(f, str_concat(" --entry ", e));
+    }
     fixed a: str = rune_build_field("arch");
-    check len(a) > 0 { f = str_concat(f, str_concat(" --arch ", a)); }
+    check len(a) > 0 {
+        check rune_chars_ok(a, "_-.") == 0 {
+            rune_reject_field("arch", a, "The target triple is passed to clang as `-target <triple>`, so it is limited to letters, digits, and _ - . characters.");
+        }
+        f = str_concat(f, str_concat(" --arch ", a));
+    }
     fixed ls: str = rune_build_field("link-script");
     check len(ls) > 0 {
+        check rune_path_field_ok(ls) == 0 {
+            rune_reject_field("link-script", ls, "A path here must not contain shell metacharacters.");
+        }
         check rune_path_exists(ls) == 0 {
             echo!(fmt("rune: link-script '{}' is named in torvik.rune but doesn't exist.", ls));
             exit(1);
@@ -375,6 +447,9 @@ df rune_build_flags() -> str {
     check rune_str_eq(rune_build_field("elf32"), "true") == 1 { f = str_concat(f, " --elf32"); }
     fixed lw: str = rune_build_field("link-with");
     check len(lw) > 0 {
+        check rune_path_field_ok(lw) == 0 {
+            rune_reject_field("link-with", lw, "A path here must not contain shell metacharacters.");
+        }
         check rune_path_exists(lw) == 0 {
             echo!(fmt("rune: link-with '{}' is named in torvik.rune but doesn't exist.", lw));
             exit(1);
